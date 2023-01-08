@@ -1,0 +1,6 @@
+[book]
+authors = ["PROMETHIA"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Dependency Injection like Bevy Engine from Scratch"
