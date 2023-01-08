@@ -117,8 +117,9 @@ I'll save you the trouble of trying to figure out what this *really* means: Any 
 #use std::marker::PhantomData;
 struct FunctionSystem<Input, F> {
     f: F,
-    // we need a marker because otherwise we're not using `Input`. I did it with a function pointer because bevy does the same
-    // for safety reasons I don't fully comprehend.
+    // we need a marker because otherwise we're not using `Input`.
+    // fn() -> Input is chosen because just using Input would not be `Send` + `Sync`,
+    // but the fnptr is always `Send` + `Sync`.
     marker: PhantomData<fn() -> Input>,
 }
 ```
