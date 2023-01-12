@@ -7,3 +7,4 @@
 - [Defining a system](./chapter1/system.md)
 # Chapter 2: Parameter Power
 - [Passing references](./chapter2/passing_references.md)
+- [More parameters](./chapter2/more_params.md)

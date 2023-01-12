@@ -19,8 +19,8 @@ fn bar(query: Query<Bar, Without<Foo>>) {
     // some other code
 }
 ```
-Most can intuitively grasp that this causes the app to automatically call the systems `foo` and `bar` 
-once per frame, but few are able to easily figure out *how* this is possible. This book aims to explain
+Most users can intuitively grasp that this causes the app to automatically call the systems `foo` and `bar` 
+once per frame, but very few are able to easily figure out *how* this is possible. This book aims to explain
 how this works, starting from scratch.
 
 ## What is Dependency Injection?

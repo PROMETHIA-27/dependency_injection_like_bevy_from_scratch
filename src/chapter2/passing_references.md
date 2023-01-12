@@ -2,20 +2,66 @@
 
 > Yes, but there's obviously some rough edges. It permanently removes resources from the store each run, we have a max limit on parameters, etc, etc. We can do better, and I'll come back to this later to add some more.
 
-Having gotten the basic architecture working, it's time to make some refinements. In this chapter we'll be focusing on two issues: The maximum limit on system parameters, and the fact that it "self destructs" every run by consuming resources. The latter will be easier to solve right now, so we'll start there.
+Having gotten the basic architecture working, it's time to make some refinements. In this chapter we'll be focusing on two issues: The maximum limit on system parameters, and the fact that it "self destructs" every run by consuming resources. The latter will enable the former, so we'll start with allowing borrows.
 
 First let's switch from owned values to borrowed ones, and see what we can do from there:
 
-```rust,noplayground
-{{#include src/references.rs:impl_system}}
+```rust
+macro_rules! impl_system {
+    (
+        $(
+            $($params:ident),+
+        )?
+    ) => {
+        #[allow(non_snake_case)]
+        #[allow(unused)]
+        impl<
+            F: FnMut(
+                $( $(& $params),+ )?
+            )
+            $(, $($params: 'static),+ )?
+        > System for FunctionSystem<($( $($params,)+ )?), F> {
+            fn run(&mut self, resources: &mut HashMap<TypeId, Box<dyn Any>>) {
+                $($(
+                    let $params = resources.get(&TypeId::of::<$params>()).unwrap().downcast_ref::<$params>().unwrap();
+                )+)?
 
-{{#include src/references.rs:impl_into_system}}
+                (self.f)(
+                    $($($params),+)?
+                );
+            }
+        }
+    }
+}
 
-{{#include src/references.rs:foo}}
+macro_rules! impl_into_system {
+    (
+        $($(
+                $params:ident
+        ),+)?
+    ) => {
+        impl<F: FnMut($($(& $params),+)?) $(, $($params: 'static),+ )?> IntoSystem<( $($($params,)+)? )> for F {
+            type System = FunctionSystem<( $($($params,)+)? ), Self>;
+
+            fn into_system(self) -> Self::System {
+                FunctionSystem {
+                    f: self,
+                    marker: Default::default(),
+                }
+            }
+        }
+    }
+}
+{{#include src/references01.rs}}
+
+fn foo(int: &i32) {
+    println!("int! {int}");
+}
 ```
 
 This works, but there's a pretty obvious problem:
-```rust,noplayground
+```rust
+{{#include src/references02.rs}}
 fn foo(int: i32) {
     println!("int! {int}");
 }
@@ -113,18 +159,21 @@ type StoredSystem = Box<dyn for<'a> System<'a>>;
 ```
 
 And finally `add_system`
-```rust,noplayground,ignore
+```rust
+{{#include src/references03.rs:before}}
 pub fn add_system<I, S: for<'a> System<'a> + 'static>(&mut self, system: impl for<'a> IntoSystem<'a, I, System = S>) {
     self.systems.push(Box::new(system.into_system()));
 }
+{{#include src/references03.rs:after}}
 ```
 
-WHEW! Glad that's over. Now it's time for a *real error*. One that isn't just us needing to slap annotation everywhere.
+WHEW! Glad that's over. Now it's time for a *real error*. One that isn't just us needing to slap annotations everywhere.
 > error[E0499]: cannot borrow `*resources` as mutable more than once at a time
 
 Yep! We're mutably borrowing resources multiple times for variants with > 1 parameter.
 How do we solve this, using all the clever tools rust provides to create a safe, powerful solution-
-```rust,noplayground,ignore
+```rust
+{{#include src/references04.rs}}
 trait SystemParam<'a> {
     fn retrieve(resources: &'a HashMap<TypeId, Box<dyn Any>>) -> Self;
 }
@@ -164,7 +213,7 @@ Because unfortunately that lifetime stuff is back.
 > error: implementation of `System` is not general enough
 
 We can't actually pass any existing system to `add_system`, because it requires that the system implement both `System` and `IntoSystem` for *all* lifetimes.
-(That's what that `for<'a>` bit means). It doesn't, just the lifetime of its parameter, so that won't work. And if that won't work, then we can't box it like this either, so looks like we'll need to go back to the drawing board. Why not take a look at how bevy approaches this?
+(That's what that `for<'a>` bit means). It doesn't, it's only implemented for the lifetime of its parameter, so that won't work. And if that won't work, then we can't box it like this either, so it looks like we'll need to go back to the drawing board. Why not take a look at how bevy approaches this?
 ```rust,ignore,noplayground
 impl<Out, Func: Send + Sync + 'static, $($param: SystemParam),*> SystemParamFunction<(), Out, ($($param,)*), ()> for Func
         where
@@ -177,8 +226,8 @@ How interesting... and what is `SystemParamItem`?
 /// Shorthand way of accessing the associated type [`SystemParam::Item`] for a given [`SystemParam`].
 pub type SystemParamItem<'w, 's, P> = <P as SystemParam>::Item<'w, 's>;
 ```
-Ah, "easy". So `SystemParam` has a GAT called `Item` which is *itself* the same as the `SystemParam`, but with a new lifetime, so they can take the function with some useless lifetime, and then instantiate it with the lifetime of the passed in resources. And while the type alias makes it shorter, I'm going to go without it to illustrate what it really means. Very complicated, and very clever. Let's do it!
-```rust,ignore,noplayground
+Ah, "easy". So `SystemParam` has a GAT called `Item` which is the same as the `SystemParam`, but with a new lifetime. They can take the function with some irrelevant lifetime, and then give it a new lifetime of the passed in resources. And while the type alias makes it shorter, I'm going to go without it to illustrate what it really means. Very complicated, and very clever. Let's do it!
+```rust
 trait SystemParam {
     type Item<'new>;
 
@@ -244,6 +293,7 @@ macro_rules! impl_into_system {
         }
     }
 }
+{{#include src/references05.rs}}
 ```
 (The `call_inner` bit is necessary to tell rust which function impl to call, it gets a bit confused otherwise.)
 
