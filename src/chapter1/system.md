@@ -67,6 +67,7 @@ macro_rules! impl_system {
             $($params:ident),+
         )?
     ) => {
+        #[allow(non_snake_case, unused)]
         impl<
             F: FnMut(
                 $( $($params),+ )?
@@ -143,6 +144,7 @@ macro_rules! impl_system {
             $($params:ident),+
         )?
     ) => {
+        #[allow(non_snake_case, unused)]
         impl<
             F: FnMut(
                 $( $($params),+ )?
@@ -276,6 +278,7 @@ macro_rules! impl_system {
             $($params:ident),+
         )?
     ) => {
+        #[allow(non_snake_case, unused)]
         impl<
             F: FnMut(
                 $( $($params),+ )?
