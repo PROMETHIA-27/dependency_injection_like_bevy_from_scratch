@@ -79,11 +79,11 @@ macro_rules! impl_system {
         )> for F {
             fn run(&mut self, resources: &mut HashMap<TypeId, Box<dyn Any>>) {
                 $($(
-                    let $params = resources.remove(&TypeId::of::<$params>()).unwrap();
+                    let $params = *resources.remove(&TypeId::of::<$params>()).unwrap().downcast::<$params>().unwrap();
                 )+)?
 
                 (self)(
-                    $($(params),+)?
+                    $($($params),+)?
                 );
             }
         }
