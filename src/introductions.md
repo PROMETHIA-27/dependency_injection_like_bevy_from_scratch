@@ -1,5 +1,7 @@
 # Introductions
 
+*Note: this book contains runnable examples. You can click the play button to see their output!*
+
 ## What is this book about?
 
 Several rust libraries use a pattern something like this (in this example, bevy):
