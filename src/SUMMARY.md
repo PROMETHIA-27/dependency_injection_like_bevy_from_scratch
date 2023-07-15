@@ -10,4 +10,5 @@
 - [More parameters](./chapter2/more_params.md)
 # Chapter 3: Solving Aliasing
 - [The easy way out](./chapter3/interior_mutability.md)
-<!-- - [The spicy way out](./chapter3/unsafe.md) -->
+- [The spicy way out](./chapter3/unsafe.md)
+  - [Tracking accesses](./chapter3/tracking_access.md)
