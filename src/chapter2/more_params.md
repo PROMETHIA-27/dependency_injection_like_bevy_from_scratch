@@ -36,7 +36,7 @@ macro_rules! impl_system_param {
     (
         $($params:ident),*
     ) => {
-        #[allow(unused)]
+        #[allow(unused, clippy::unused_unit)]
         impl<$($params: SystemParam),*> SystemParam for ($($params,)*) {
             type Item<'new> = ($($params::Item<'new>,)*);
 
