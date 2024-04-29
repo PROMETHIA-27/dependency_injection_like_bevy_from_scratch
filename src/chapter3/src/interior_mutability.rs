@@ -71,7 +71,7 @@ impl<'res, T: 'static> SystemParam for Res<'res, T> {
 
     fn retrieve<'r>(resources: &'r HashMap<TypeId, RefCell<Box<dyn Any>>>) -> Self::Item<'r> {
         Res {
-            value: resources.get(&TypeId::of::<T>()).unwrap().borrow(),
+            value: resources[&TypeId::of::<T>()].borrow(),
             _marker: PhantomData,
         }
     }
@@ -84,7 +84,7 @@ impl<'res, T: 'static> SystemParam for ResMut<'res, T> {
 
     fn retrieve<'r>(resources: &'r HashMap<TypeId, RefCell<Box<dyn Any>>>) -> Self::Item<'r> {
         ResMut {
-            value: resources.get(&TypeId::of::<T>()).unwrap().borrow_mut(),
+            value: resources[&TypeId::of::<T>()].borrow_mut(),
             _marker: PhantomData,
         }
     }
