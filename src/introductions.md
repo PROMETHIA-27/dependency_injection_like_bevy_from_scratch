@@ -1,6 +1,6 @@
 # Introductions
 
-*Note: this book contains runnable examples. You can click the play button to see their output!*
+*Note: this book contains runnable examples at the end of some chapters. You can click the play button to see their output!*
 
 ## What is this book about?
 

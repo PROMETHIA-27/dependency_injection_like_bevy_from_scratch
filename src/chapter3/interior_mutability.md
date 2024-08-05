@@ -18,11 +18,12 @@ fundamental rule of the borrow checker, that you cannot mutate from an immutable
 
 But sometimes you *need* to do that, so rust provides the [`UnsafeCell`](https://doc.rust-lang.org/std/cell/struct.UnsafeCell.html)
 type. Then, safe types were built on top of it for our convenience. In this case, we're going
-to use a neat little type called [`RefCell`](https://doc.rust-lang.org/std/cell/struct.RefCell.html).
+to use a neat type called [`RefCell`](https://doc.rust-lang.org/std/cell/struct.RefCell.html).
 
 `RefCell` is a type that allows safe interior mutability by checking at *runtime* if it's being accessed
 correctly. Pretend it looks like this on the inside (this is pseudocode which will not compile for the sake of
-being clearer to read):
+being clearer to read, nor does it exactly resemble RefCell's actual implementation which is somewhat
+more optimized):
 ```rust,ignore
 enum Borrow {
     None,
@@ -62,7 +63,7 @@ match &mut self.borrows {
 }
 ```
 
-It increments reference counters whenever you borrow, or panics if you attempt to make invalid 
+It increments counters whenever you borrow, or panics if you attempt to make invalid 
 borrows like an immutable reference when a mutable reference exists.
 
 Then, instead of returning `&T` or `&mut T`, it returns the special types 
@@ -71,13 +72,15 @@ Then, instead of returning `&T` or `&mut T`, it returns the special types
 When these are dropped, they decrement the borrow counter.
 
 It's like a runtime borrow checker! This is super useful but very critically: *not* threadsafe,
-as I alluded to above with heavy emphasis. A threadsafe alternative would be something like
+as I alluded to at the top with heavy emphasis. A threadsafe alternative would be something like
 [`Mutex`](https://doc.rust-lang.org/std/sync/struct.Mutex.html) or 
 [`RwLock`](https://doc.rust-lang.org/std/sync/struct.RwLock.html), which have different semantics.
+RwLock is a closer match but, to my knowledge, rarely actually useful compared to a Mutex for complicated
+performance reasons.
 
-But we're not threading, so we're good! 
+But we're not threading, so let's just use `RefCell`. 
 
-First, let's make an observation:
+First, an observation:
 ```rust,compile_fail
 let v = vec![1, 2];
 let x = &mut v[0];
@@ -120,44 +123,104 @@ Now we should understand the tool well enough to put it to use.
 First let's redefine a few things:
 - Add `RefCell` into `Schedule`'s `resources` (and also add default derive for convenience)
 ```rust,ignore
-{{#include src/interior_mutability.rs:Scheduler}}
+#[derive(Default)]
+struct Scheduler {
+    systems: Vec<StoredSystem>,
+    resources: HashMap<TypeId, RefCell<Box<dyn Any>>>,
+}
 ```
 - Wrap resources in `RefCell` in `add_resource`
 ```rust,ignore
-{{#include src/interior_mutability.rs:SchedulerImpl}}
+impl Scheduler {
+    // ...
+
+    pub fn add_resource<R: 'static>(&mut self, res: R) {
+        self.resources
+            .insert(TypeId::of::<R>(), RefCell::new(Box::new(res)));
+    }
+}
 ```
 - Add `RefCell` to signature here
 ```rust,ignore
-{{#include src/interior_mutability.rs:System}}
+trait System {
+    fn run(&mut self, resources: &mut HashMap<TypeId, RefCell<Box<dyn Any>>>);
+}
 ```
 - And here
 ```rust,ignore
-{{#include src/interior_mutability.rs:SystemParam}}
+trait SystemParam {
+    type Item<'new>;
+
+    fn retrieve<'r>(resources: &'r HashMap<TypeId, RefCell<Box<dyn Any>>>) -> Self::Item<'r>;
+}
 ```
 - Res needs to store a `Ref<Box<dyn Any>>` now instead of `&T`, or the `Ref` will be dropped 
 early
 ```rust,ignore
-{{#include src/interior_mutability.rs:Res}}
+struct Res<'a, T: 'static> {
+    value: Ref<'a, Box<dyn Any>>,
+    _marker: PhantomData<&'a T>,
+}
 ```
-- Add [`Deref`](https://doc.rust-lang.org/std/ops/trait.Deref.html) impl to `Res`
+- Add [`Deref`](https://doc.rust-lang.org/std/ops/trait.Deref.html) impl to `Res` for convenience
 ```rust,ignore
-{{#include src/interior_mutability.rs:ResDeref}}
+impl<T: 'static> Deref for Res<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.value.downcast_ref().unwrap()
+    }
+}
 ```
 - Add a `.borrow()` here to implement `Res` trivially
 ```rust,ignore
-{{#include src/interior_mutability.rs:ResSystemParam}}
+impl<'res, T: 'static> SystemParam for Res<'res, T> {
+    type Item<'new> = Res<'new, T>;
+
+    fn retrieve<'r>(resources: &'r HashMap<TypeId, RefCell<Box<dyn Any>>>) -> Self::Item<'r> {
+        Res {
+            value: resources.get(&TypeId::of::<T>()).unwrap().borrow(),
+            _marker: PhantomData,
+        }
+    }
+}
 ```
-(also had to tweak the macros, but they're very noisy and are at the end)
 
 And this gives us a functioning `Res` again! Now let's implement `ResMut`:
 
-- Define `ResMut`:
+- Define `ResMut` (plus `Deref` impls):
 ```rust,ignore
-{{#include src/interior_mutability.rs:ResMut}}
+struct ResMut<'a, T: 'static> {
+    value: RefMut<'a, Box<dyn Any>>,
+    _marker: PhantomData<&'a mut T>,
+}
+
+impl<T: 'static> Deref for ResMut<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.value.downcast_ref().unwrap()
+    }
+}
+
+impl<T: 'static> DerefMut for ResMut<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.value.downcast_mut().unwrap()
+    }
+}
 ```
 - Impl `SystemParam` for it:
 ```rust,ignore
-{{#include src/interior_mutability.rs:ResMutSystemParam}}
+impl<'res, T: 'static> SystemParam for ResMut<'res, T> {
+    type Item<'new> = ResMut<'new, T>;
+
+    fn retrieve<'r>(resources: &'r HashMap<TypeId, RefCell<Box<dyn Any>>>) -> Self::Item<'r> {
+        ResMut {
+            value: resources.get(&TypeId::of::<T>()).unwrap().borrow_mut(),
+            _marker: PhantomData,
+        }
+    }
+}
 ```
 
 And there we go! We can now access multiple resources mutably from systems.
@@ -171,7 +234,6 @@ error prone to use, so I'm not going to do it myself.
 ## Final Product
 ```rust
 {{#include src/interior_mutability.rs:All}}
-
 fn main() {
     let mut scheduler = Scheduler::default();
     scheduler.add_system(foo);
@@ -194,7 +256,7 @@ fn bar(statement: Res<&'static str>, num: Res<i32>) {
 
 Pretty cool! But this does have one sharp edge (if you run this, it will panic):
 ```rust,should_panic
-{{#rustdoc_include src/interior_mutability.rs:0:0}}
+{{#include src/interior_mutability.rs:All}}
 fn main() {
     let mut scheduler = Scheduler::default();
     scheduler.add_system(spooky);
@@ -210,4 +272,4 @@ fn spooky(_foo: ResMut<i32>, _bar: ResMut<i32>) {
 
 We of course still can't borrow *the same resource* mutably multiple times at once, and `RefCell`
 will prevent this by panicking if we ever try to construct an ill-formed system like this. Bevy will
-do something similar, but with a better error message; We will do it manually in the next section.
+do something similar, but with a better error message; We will show how in the next section.
