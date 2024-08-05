@@ -1,5 +1,7 @@
 # The spicy way out
 
+> **WARNING**: All sections from here forward have not been reviewed yet. They may contain errors, misrepresentations, or broken code, or other mishaps. I personally am not aware of any of the above, but when working with unsafe code one should always have peer reviews.
+
 Now that we've seen how to accomplish what we wanted to the safe way, we're going to take a look
 at the unsafe way, which is what bevy uses (although we won't use *exactly* the same techniques
 as bevy).
