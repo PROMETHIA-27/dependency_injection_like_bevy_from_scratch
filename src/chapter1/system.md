@@ -106,7 +106,7 @@ trait ErasedSystem {
 
 impl<S: System<I>, I> ErasedSystem for S {
     fn run(&mut self, resources: &mut HashMap<TypeId, Box<dyn Any>>) {
-        <Self as System<I>>::run(self);
+        <Self as System<I>>::run(self, resources);
     }
 }
 ```
