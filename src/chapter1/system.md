@@ -91,7 +91,7 @@ trait System {
     fn run(&mut self, resources: &mut HashMap<TypeId, Box<dyn Any>>);
 }
 
-impl<F: FnMut()> System<()> for FunctionSystem<(), F> {
+impl<F: FnMut()> System for FunctionSystem<(), F> {
     fn run(&mut self, resources: &mut HashMap<TypeId, Box<dyn Any>>) {
         (self.f)()
     }
