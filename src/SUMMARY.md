@@ -11,3 +11,5 @@
 - [More parameters](./chapter2/more_params.md)
 # Chapter 3: Solving Aliasing
 - [The easy way out](./chapter3/interior_mutability.md)
+# Chapter 4: An aside on compile times
+- [A demo](./chapter4/demo.md)
