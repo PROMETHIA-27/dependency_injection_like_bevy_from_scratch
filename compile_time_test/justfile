@@ -3,6 +3,7 @@ run:
     rm generate_systems.pdb
     ./generate_systems.exe > src/systems.rs
     rm generate_systems.exe
+    cargo clean
     cargo rustc -- -Z time-passes 2>&1 >/dev/null | grep 'time:\s*0' -v
 
 call:
@@ -10,4 +11,5 @@ call:
     rm generate_systems.pdb
     ./generate_systems.exe call > src/systems.rs
     rm generate_systems.exe
+    cargo clean
     cargo rustc -F call -- -Z time-passes 2>&1 >/dev/null | grep 'time:\s*0' -v
