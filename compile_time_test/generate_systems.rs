@@ -71,10 +71,10 @@ fn generate_system_calls(out: &mut String) {
 fn generate_system(out: &mut String, index: usize) {
     out.push_str(&format!("pub fn system{index}("));
 
-    let arg_count = random::<u8>() % 8;
+    let arg_count = random::<u8>(..) % 8;
 
     for i in 0..arg_count {
-        let ty_index = random::<u8>() % TYPES.len() as u8;
+        let ty_index = random::<u8>(..) % TYPES.len() as u8;
         let ty = TYPES[ty_index as usize];
 
         out.push_str(&format!("_arg{i}: Res<{ty}>, "));
