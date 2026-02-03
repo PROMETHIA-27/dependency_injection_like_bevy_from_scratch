@@ -35,17 +35,20 @@ fn main() {
 const TYPES: &[&str] = &["i32", "usize", "&'static str"];
 
 fn generate_header(out: &mut String) {
-    out.push_str("#![allow(unused, non_camel_case_types)]\n");
-    out.push_str("use crate::{Res, Scheduler, FunkySystem, StoredSystem};\n");
-    out.push_str("use std::{any::{Any, TypeId}, cell::RefCell, collections::HashMap, marker::PhantomData};\n\n");
+    out.push_str(
+"#![allow(unused, non_camel_case_types)]
+use crate::{Res, Scheduler, FunkySystem};
+use std::{any::{Any, TypeId}, cell::RefCell, collections::HashMap, marker::PhantomData};
+
+fn dummycall(resources: &mut HashMap<TypeId, *mut ()>) {}\n\n");
 }
 
 fn generate_system_adds(out: &mut String) {
     out.push_str("pub fn add_systems(sched: &mut Scheduler) {\n");
 
-    // for i in 0..COUNT {
-    //     out.push_str(&format!("\tsched.add_system(system{i});\n"));
-    // }
+    for i in 0..COUNT {
+        out.push_str(&format!("\tsched.add_system(system{i});\n"));
+    }
 
     out.push_str("}\n\n");
 }
@@ -79,14 +82,16 @@ fn generate_system(out: &mut String, index: usize) {
 
     out.push_str(&format!(
         "#[allow(non_upper_case_globals)]
-pub static system{index}: StoredSystem = __system_caller{index};
-// pub static system{index}: StoredSystem = &__system_caller{index};
+pub static system{index}: FunkySystem = FunkySystem {{ 
+    function: __system_caller{index},
+}};
 
-fn __system_caller{index}(resources: &mut HashMap<TypeId, Box<dyn Any>>) {{
+fn __system_caller{index}(resources: &mut HashMap<TypeId, *mut ()>) {{
 {arg_declares}
     __system_internal{index}({arg_passes});
 }}
 
+#[inline(always)]
 pub fn __system_internal{index}({sys_args}) {{ println!(\"Hello, world!\"); }}\n\n"
     ));
 }
@@ -113,6 +118,7 @@ fn generate_call_system(out: &mut String, index: usize) {
     system{index}({arg_passes});
 }}
     
+#[inline(always)]
 pub fn system{index}({sys_args}) {{ 
     println!(\"Hello, world!\"); 
 }}\n\n"
